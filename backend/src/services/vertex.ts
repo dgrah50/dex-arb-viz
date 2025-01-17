@@ -24,13 +24,17 @@ type VertexPriceResponse = Record<number, PerpPriceInfo>;
 
 export class VertexService implements PriceStreamService {
   private client: VertexClient | null = null;
-  private readonly pollInterval = 500; // 500ms
+  private messageSubject = new Subject<PriceData>();
+  private activeSubscriptions = new Set<string>();
+  private readonly pollInterval = 500;
   private productCache: Map<string, number> = new Map();
   private symbolsMap: Map<number, string> = new Map();
   private isInitialized = false;
-  private priceSubject = new Subject<PriceData>();
-  private activeSubscriptions = new Set<string>();
   private pricePollingSubscription: any = null;
+
+  constructor() {
+    // Add constructor for consistency with ReyaService
+  }
 
   private async fetchSymbolsMap(): Promise<void> {
     try {
@@ -97,7 +101,7 @@ export class VertexService implements PriceStreamService {
       )
       .subscribe({
         next: (prices) => {
-          prices.forEach((price) => this.priceSubject.next(price));
+          prices.forEach((price) => this.messageSubject.next(price));
         },
         error: (error) => {
           console.error("Error in price polling:", error);
@@ -115,7 +119,7 @@ export class VertexService implements PriceStreamService {
       this.pricePollingSubscription.unsubscribe();
       this.pricePollingSubscription = null;
     }
-    this.priceSubject.complete();
+    this.messageSubject.complete();
     this.activeSubscriptions.clear();
     this.client = null;
     this.isInitialized = false;
@@ -170,25 +174,25 @@ export class VertexService implements PriceStreamService {
   }
 
   public getPriceStream(symbol: string): Observable<PriceData> {
-    this.activeSubscriptions.add(symbol);
+    if (!this.isInitialized) {
+      this.connect(); // Auto-connect like ReyaService
+    }
 
-    // Start polling if it's not already started
+    this.activeSubscriptions.add(symbol);
     this.startPricePolling();
 
-    return this.priceSubject.pipe(
+    return this.messageSubject.pipe(
       filter((price) => price.symbol === symbol),
       distinctUntilChanged((prev, curr) => prev.price === curr.price)
     );
   }
 
   private async fetchPrices(symbols: string[]): Promise<PriceData[]> {
-    await this.initialize();
+    if (!this.client) {
+      throw new Error("Vertex client not initialized"); // Consistent error messaging
+    }
 
     try {
-      if (!this.client) {
-        throw new Error("Vertex client not initialized");
-      }
-
       const productIds = await Promise.all(
         symbols.map((symbol) => this.getProductId(symbol))
       );
@@ -218,7 +222,7 @@ export class VertexService implements PriceStreamService {
         };
       });
     } catch (error) {
-      console.error(`Error fetching prices:`, error);
+      console.error("Error fetching Vertex prices:", error); // Consistent error messaging
       throw error;
     }
   }

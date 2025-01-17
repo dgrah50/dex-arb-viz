@@ -1,11 +1,10 @@
-import Koa from "koa";
-import Router from "@koa/router";
+import express, { Request, Response } from "express";
+import cors from "cors";
 import { WebSocketServer } from "ws";
 import { merge } from "rxjs";
 import { ReyaService } from "./services/reya.js";
 import { VertexService } from "./services/vertex.js";
 import { map } from "rxjs/operators";
-import serve from "koa-static";
 import path from "path";
 import { fileURLToPath } from "url";
 
@@ -21,13 +20,20 @@ interface Price {
 }
 
 const startServer = async () => {
-  const app = new Koa();
-  const router = new Router();
+  const app = express();
   const reyaService = new ReyaService();
   const vertexService = new VertexService();
 
+  // Enable CORS for localhost:5173
+  app.use(
+    cors({
+      origin: "http://localhost:5173",
+      credentials: true,
+    })
+  );
+
   // Serve static files from the public directory
-  app.use(serve(path.join(__dirname, "../../public")));
+  app.use(express.static(path.join(__dirname, "../../public")));
 
   // Connect to services and get available symbols
   await Promise.all([reyaService.connect(), vertexService.connect()]);
@@ -60,22 +66,19 @@ const startServer = async () => {
     SUPPORTED_SYMBOLS.map((s) => s.baseSymbol)
   );
 
-  router.get("/symbols", async (ctx) => {
-    ctx.body = SUPPORTED_SYMBOLS.map((s) => s.baseSymbol);
+  app.get("/symbols", (req: Request, res: Response) => {
+    res.json(SUPPORTED_SYMBOLS.map((s) => s.baseSymbol));
   });
 
-  app.use(router.routes()).use(router.allowedMethods());
-
-  const server = app.listen(3000, () =>
-    console.log("Server running on port 3000")
-  );
+  const server = app.listen(3000, () => {
+    console.log("Server running on port 3000");
+  });
 
   const wss = new WebSocketServer({ server });
 
   wss.on("connection", (ws) => {
     console.log("Client connected");
 
-    // For each supported symbol, create price streams from both sources
     const subscriptions = SUPPORTED_SYMBOLS.map((symbolPair) => {
       const reyaStream = reyaService.getPriceStream(symbolPair.reyaSymbol).pipe(
         map((price) => ({
@@ -95,7 +98,6 @@ const startServer = async () => {
           }))
         );
 
-      // Merge streams from both sources
       return merge(reyaStream, vertexStream).subscribe(
         (price: Price) => {
           if (ws.readyState === ws.OPEN) {
@@ -112,7 +114,6 @@ const startServer = async () => {
 
     ws.on("close", () => {
       console.log("Client disconnected");
-      // Cleanup subscriptions
       subscriptions.forEach((sub) => sub.unsubscribe());
     });
   });

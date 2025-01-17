@@ -60,6 +60,7 @@ export class ReyaService implements PriceStreamService {
   private socket: SocketClient | null = null;
   private messageSubject = new Subject<SocketMessage>();
   private activeSubscriptions = new Set<string>();
+  private isInitialized = false;
 
   constructor() {
     ApiClient.configure("production");
@@ -75,13 +76,14 @@ export class ReyaService implements PriceStreamService {
       environment: "production",
       onOpen: () => {
         console.log("Reya WebSocket connected");
-        // Resubscribe to active streams on reconnect
+        this.isInitialized = true;
         this.activeSubscriptions.forEach((marketId) => {
           this.socket?.subscribe("prices", { id: marketId });
         });
       },
       onClose: () => {
         console.log("Reya WebSocket closed");
+        this.isInitialized = false;
       },
       onMessage: (message: SocketMessage) => {
         this.messageSubject.next(message);
@@ -147,12 +149,12 @@ export class ReyaService implements PriceStreamService {
    * Get a price stream for a specific symbol
    */
   public getPriceStream(symbol: string): Observable<PriceData> {
-    if (!this.socket) {
+    if (!this.isInitialized) {
       this.connect();
     }
 
     if (!this.socket) {
-      throw new Error("Failed to initialize WebSocket connection");
+      throw new Error("Reya client not initialized");
     }
 
     const marketId = this.getMarketId(symbol);

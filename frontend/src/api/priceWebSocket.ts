@@ -1,5 +1,3 @@
-import { create } from "zustand";
-
 export interface PriceData {
   source: "reya" | "vertex";
   symbol: string;

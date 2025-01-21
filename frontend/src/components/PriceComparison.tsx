@@ -161,7 +161,7 @@ interface PriceGridProps {
 const PriceGrid = memo<PriceGridProps>(({ onSymbolClick, onRemoveSymbol }) => {
   const gridApiRef = useRef<GridApi | null>(null);
   const selectedSymbols = usePriceStore((state) => state.selectedSymbols);
-  const filteredPrices = usePriceStore((state) => state.getFilteredPrices());
+  const prices = usePriceStore((state) => state.getFilteredPrices());
 
   const getRowId = useCallback(
     (params: { data: PriceRecord }) => params.data.symbol,
@@ -217,15 +217,15 @@ const PriceGrid = memo<PriceGridProps>(({ onSymbolClick, onRemoveSymbol }) => {
     const updatedData = selectedSymbols.map((symbol) => ({
       key: symbol,
       symbol,
-      reyaPrice: filteredPrices[symbol]?.reya?.price,
-      vertexPrice: filteredPrices[symbol]?.vertex?.price,
-      spread: filteredPrices[symbol]?.spread,
+      reyaPrice: prices[symbol]?.reya?.price,
+      vertexPrice: prices[symbol]?.vertex?.price,
+      spread: prices[symbol]?.spread,
     }));
 
     if (selectedSymbols.length > 0) {
       gridApiRef.current.setRowData(updatedData);
     }
-  }, [selectedSymbols, filteredPrices]);
+  }, [selectedSymbols, prices]);
 
   const defaultColDef = useMemo(
     () => ({

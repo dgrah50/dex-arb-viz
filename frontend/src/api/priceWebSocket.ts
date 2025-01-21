@@ -6,8 +6,8 @@ export interface PriceData {
 }
 
 class PriceWebSocketService {
-  private reyaWs: WebSocket | null = null;
-  private vertexWs: WebSocket | null = null;
+  private ws: WebSocket | null = null;
+
   private subscribers: ((data: PriceData) => void)[] = [];
 
   constructor() {
@@ -16,17 +16,10 @@ class PriceWebSocketService {
 
   private initializeWebSockets() {
     // Initialize Reya WebSocket
-    this.reyaWs = new WebSocket("ws://localhost:3000/ws/reya");
-    this.reyaWs.onmessage = (event) => {
+    this.ws = new WebSocket("ws://localhost:3000/ws");
+    this.ws.onmessage = (event) => {
       const data = JSON.parse(event.data);
-      this.notifySubscribers({ ...data, source: "reya" });
-    };
-
-    // Initialize Vertex WebSocket
-    this.vertexWs = new WebSocket("ws://localhost:3000/ws/vertex");
-    this.vertexWs.onmessage = (event) => {
-      const data = JSON.parse(event.data);
-      this.notifySubscribers({ ...data, source: "vertex" });
+      this.notifySubscribers(data);
     };
   }
 
@@ -42,11 +35,8 @@ class PriceWebSocketService {
   }
 
   disconnect() {
-    if (this.reyaWs) {
-      this.reyaWs.close();
-    }
-    if (this.vertexWs) {
-      this.vertexWs.close();
+    if (this.ws) {
+      this.ws.close();
     }
   }
 }

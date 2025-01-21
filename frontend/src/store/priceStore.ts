@@ -88,19 +88,14 @@ export const usePriceStore = create<PriceState>()(
 
     updatePrice: (data: PriceData) => {
       const currentState = get();
-      const currentSymbolData = currentState.prices[data.symbol] || {
-        history: [],
-      };
-      const otherSourceData =
-        data.source === "reya"
-          ? currentSymbolData.vertex
-          : currentSymbolData.reya;
+
+      const otherSource = data.source === "reya" ? "vertex" : "reya";
+      const otherPrice =
+        currentState.prices[data.symbol]?.[otherSource]?.price ?? undefined;
 
       // Calculate new spread if we have both prices
-      const reyaPrice =
-        data.source === "reya" ? data.price : otherSourceData?.price;
-      const vertexPrice =
-        data.source === "vertex" ? data.price : otherSourceData?.price;
+      const reyaPrice = data.source === "reya" ? data.price : otherPrice;
+      const vertexPrice = data.source === "vertex" ? data.price : otherPrice;
       const spreadResult = calculateSpread(reyaPrice, vertexPrice);
 
       // Create new history point

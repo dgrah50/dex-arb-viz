@@ -14,21 +14,16 @@ export const calculateSpread = (
   const minPrice = Math.min(reyaPrice, vertexPrice);
   const spread = (Math.abs(reyaPrice - vertexPrice) / minPrice) * 100;
 
-  // Determine direction
+  // Determine direction and color based on which price is higher
   let direction: SpreadInfo["direction"] = "equal";
+  let color = "#8c8c8c"; // Equal prices - gray
+
   if (reyaPrice > vertexPrice) {
     direction = "reya-higher";
+    color = "#1890ff"; // Reya higher - blue
   } else if (vertexPrice > reyaPrice) {
     direction = "vertex-higher";
-  }
-
-  // Color based on spread magnitude
-  let color = "#52c41a"; // Small spread - green
-  if (spread > 1) {
-    color = "#faad14"; // Medium spread - yellow
-  }
-  if (spread > 2) {
-    color = "#f5222d"; // Large spread - red
+    color = "#722ed1"; // Vertex higher - purple
   }
 
   return {

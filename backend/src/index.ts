@@ -8,7 +8,6 @@ import { map } from "rxjs/operators";
 import path from "path";
 import { fileURLToPath } from "url";
 
-// Get the directory name in ESM
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
@@ -24,7 +23,6 @@ const startServer = async () => {
   const reyaService = new ReyaService();
   const vertexService = new VertexService();
 
-  // Enable CORS for localhost:5173
   app.use(
     cors({
       origin: "http://localhost:5173",
@@ -32,10 +30,8 @@ const startServer = async () => {
     })
   );
 
-  // Serve static files from the public directory
   app.use(express.static(path.join(__dirname, "../../public")));
 
-  // Connect to services and get available symbols
   await Promise.all([reyaService.connect(), vertexService.connect()]);
   const [reyaSymbols, vertexSymbols] = await Promise.all([
     reyaService.getAvailableSymbols(),
@@ -118,7 +114,6 @@ const startServer = async () => {
     });
   });
 
-  // Graceful shutdown
   process.on("SIGTERM", () => {
     console.log("SIGTERM received. Closing server...");
     server.close(() => {

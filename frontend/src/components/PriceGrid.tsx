@@ -1,5 +1,5 @@
 import React, { useEffect, useCallback, useMemo, memo, useRef } from "react";
-import { Button, Space, Tag, Tooltip } from "antd";
+import { Button, Tag } from "antd";
 import { AgGridReact } from "@ag-grid-community/react";
 import {
   ColDef,
@@ -9,7 +9,7 @@ import {
 } from "@ag-grid-community/core";
 import "@ag-grid-community/styles/ag-grid.css";
 import "@ag-grid-community/styles/ag-theme-alpine.css";
-import { DeleteOutlined, InfoCircleOutlined } from "@ant-design/icons";
+import { DeleteOutlined } from "@ant-design/icons";
 import { getDirectionLabel, SpreadInfo } from "../utils/priceUtils";
 import { usePriceStore } from "../store/priceStore";
 import { Spin } from "antd";
@@ -51,15 +51,41 @@ interface PriceCellRendererProps extends ICellRendererParams {
   data: PriceRecord;
 }
 
-const SpreadCellRenderer = memo<PriceCellRendererProps>(({ data }) => {
-  if (!data.spread) return "-";
-  return (
-    <Tag color={data.spread.color}>
-      {data.spread.value.toFixed(2)}% (
-      {getDirectionLabel(data.spread.direction)})
-    </Tag>
-  );
-});
+const SpreadCellRenderer = memo<PriceCellRendererProps & { maxSpread: number }>(
+  ({ data, maxSpread }) => {
+    if (!data.spread) return "-";
+
+    // Calculate relative intensity (0 to 1)
+    const intensity =
+      maxSpread > 0 ? Math.abs(data.spread.value) / maxSpread : 1;
+
+    // Convert hex to RGB for opacity support
+    const getColorWithOpacity = (hexColor: string, opacity: number) => {
+      // Convert hex to RGB
+      const r = parseInt(hexColor.slice(1, 3), 16);
+      const g = parseInt(hexColor.slice(3, 5), 16);
+      const b = parseInt(hexColor.slice(5, 7), 16);
+      return `rgba(${r}, ${g}, ${b}, ${opacity})`;
+    };
+
+    const style = {
+      backgroundColor: getColorWithOpacity(
+        data.spread.color,
+        Math.max(0.3, intensity)
+      ),
+      padding: "4px 8px",
+      borderRadius: "2px",
+      color: intensity > 0.5 ? "#fff" : "#000",
+    };
+
+    return (
+      <span style={style}>
+        {data.spread.value.toFixed(3)}% (
+        {getDirectionLabel(data.spread.direction)})
+      </span>
+    );
+  }
+);
 
 const ActionCellRenderer = memo<
   PriceCellRendererProps & { onRemove: (symbol: string) => void }
@@ -69,25 +95,6 @@ const ActionCellRenderer = memo<
     icon={<DeleteOutlined />}
     onClick={() => onRemove(data.symbol)}
   />
-));
-
-const SpreadHeaderComponent = memo(() => (
-  <Space>
-    Spread
-    <Tooltip
-      title={
-        <div>
-          {SPREAD_LEGEND.map(({ color, label }) => (
-            <div key={color}>
-              <Tag color={color}>{label}</Tag>
-            </div>
-          ))}
-        </div>
-      }
-    >
-      <InfoCircleOutlined />
-    </Tooltip>
-  </Space>
 ));
 
 const LoadingOverlay = memo(() => <Spin />);
@@ -102,6 +109,15 @@ export const PriceGrid = memo<PriceGridProps>(
     const gridApiRef = useRef<GridApi | null>(null);
     const selectedSymbols = usePriceStore((state) => state.selectedSymbols);
     const prices = usePriceStore((state) => state.getFilteredPrices());
+
+    // Calculate maximum spread value
+    const maxSpread = useMemo(() => {
+      return Math.max(
+        ...selectedSymbols.map((symbol) =>
+          Math.abs(prices[symbol]?.spread?.value || 0)
+        )
+      );
+    }, [selectedSymbols, prices]);
 
     const getRowId = useCallback(
       (params: { data: PriceRecord }) => params.data.symbol,
@@ -136,7 +152,17 @@ export const PriceGrid = memo<PriceGridProps>(
           field: "spread",
           headerName: "Spread",
           cellRenderer: SpreadCellRenderer,
-          headerComponent: SpreadHeaderComponent,
+          sortable: true,
+          width: 250,
+          cellRendererParams: {
+            maxSpread,
+          },
+          // headerComponent: SpreadHeaderComponent,
+          comparator: (valueA, valueB) => {
+            const spreadA = valueA?.value || 0;
+            const spreadB = valueB?.value || 0;
+            return spreadA - spreadB;
+          },
         },
         {
           field: "action",
@@ -148,7 +174,7 @@ export const PriceGrid = memo<PriceGridProps>(
           width: 100,
         },
       ],
-      [onSymbolClick, onRemoveSymbol]
+      [onSymbolClick, onRemoveSymbol, maxSpread]
     );
 
     useEffect(() => {
@@ -177,18 +203,27 @@ export const PriceGrid = memo<PriceGridProps>(
     );
 
     return (
-      <div className="ag-theme-alpine" style={{ height: 400, width: "100%" }}>
-        <AgGridReact
-          columnDefs={columnDefs}
-          domLayout="autoHeight"
-          suppressPaginationPanel={true}
-          defaultColDef={defaultColDef}
-          loadingOverlayComponent={LoadingOverlay}
-          onGridReady={onGridReady}
-          getRowId={getRowId}
-          debug
-        />
-      </div>
+      <>
+        <div style={{ marginBottom: "8px", display: "flex", gap: "8px" }}>
+          {SPREAD_LEGEND.map(({ color, label }) => (
+            <div key={color}>
+              <Tag color={color}>{label}</Tag>
+            </div>
+          ))}
+        </div>
+        <div className="ag-theme-alpine" style={{ height: 400, width: "100%" }}>
+          <AgGridReact
+            columnDefs={columnDefs}
+            domLayout="autoHeight"
+            suppressPaginationPanel={true}
+            defaultColDef={defaultColDef}
+            loadingOverlayComponent={LoadingOverlay}
+            onGridReady={onGridReady}
+            getRowId={getRowId}
+            debug
+          />
+        </div>
+      </>
     );
   }
 );

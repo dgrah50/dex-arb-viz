@@ -66,7 +66,6 @@ export class VertexService implements PriceStreamService {
     if (this.isInitialized) return;
 
     try {
-      // First fetch the symbols mapping
       await this.fetchSymbolsMap();
 
       // Create a provider for Arbitrum

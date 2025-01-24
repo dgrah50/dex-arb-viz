@@ -8,15 +8,11 @@ export interface PriceData {
 }
 
 export interface PriceStreamService {
-  // Connect to the service (if needed)
   connect(): void;
 
-  // Disconnect from the service (if needed)
   disconnect(): void;
 
-  // Get list of available trading pairs
   getAvailableSymbols(): Promise<string[]>;
 
-  // Get real-time price stream for a symbol
   getPriceStream(symbol: string): Observable<PriceData>;
 }

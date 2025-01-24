@@ -6,16 +6,13 @@ async function main() {
   console.log("Starting price feed test...");
 
   try {
-    // Initialize both services
     const reyaService = new ReyaService();
     const vertexService = new VertexService();
 
-    // Connect to both services
     console.log("\nConnecting to services...");
     await Promise.all([reyaService.connect(), vertexService.connect()]);
     console.log("Connected to both services");
 
-    // Get available symbols from both services
     console.log("\nFetching available symbols...");
     const [reyaSymbols, vertexSymbols] = await Promise.all([
       reyaService.getAvailableSymbols(),

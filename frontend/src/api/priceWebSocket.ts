@@ -15,7 +15,6 @@ class PriceWebSocketService {
   }
 
   private initializeWebSockets() {
-    // Initialize Reya WebSocket
     this.ws = new WebSocket("ws://localhost:3000/ws");
     this.ws.onmessage = (event) => {
       const data = JSON.parse(event.data);

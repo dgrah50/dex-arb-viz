@@ -10,7 +10,6 @@ export const calculateSpread = (
 ): SpreadInfo | null => {
   if (!reyaPrice || !vertexPrice) return null;
 
-  // Calculate spread using minimum price as denominator
   const minPrice = Math.min(reyaPrice, vertexPrice);
   const spread = (Math.abs(reyaPrice - vertexPrice) / minPrice) * 100;
 

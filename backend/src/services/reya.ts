@@ -22,7 +22,7 @@ interface ReyaPriceMessage {
   marketId: number;
 }
 
-// Mapping between ticker symbols and their market IDs
+// Mapping between ticker symbols and their market IDs, bit manual but not really exposed publicly
 const MARKET_ID_MAPPING = {
   "ETH-rUSD": "ETHUSDMARK",
   "BTC-rUSD": "BTCUSDMARK",

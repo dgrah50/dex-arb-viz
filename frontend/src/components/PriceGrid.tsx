@@ -157,7 +157,6 @@ export const PriceGrid = memo<PriceGridProps>(
           cellRendererParams: {
             maxSpread,
           },
-          // headerComponent: SpreadHeaderComponent,
           comparator: (valueA, valueB) => {
             const spreadA = valueA?.value || 0;
             const spreadB = valueB?.value || 0;
@@ -220,7 +219,6 @@ export const PriceGrid = memo<PriceGridProps>(
             loadingOverlayComponent={LoadingOverlay}
             onGridReady={onGridReady}
             getRowId={getRowId}
-            debug
           />
         </div>
       </>

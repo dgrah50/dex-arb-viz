@@ -22,6 +22,9 @@ interface PerpPriceInfo {
 
 type VertexPriceResponse = Record<number, PerpPriceInfo>;
 
+/**
+ * Service for interacting with Vertex Protocol's API to stream price data
+ */
 export class VertexService implements PriceStreamService {
   private client: VertexClient | null = null;
   private messageSubject = new Subject<PriceData>();
@@ -36,6 +39,9 @@ export class VertexService implements PriceStreamService {
     // Add constructor for consistency with ReyaService
   }
 
+  /**
+   * Fetch and cache the mapping between product IDs and symbols from Vertex API
+   */
   private async fetchSymbolsMap(): Promise<void> {
     try {
       const response = await fetch(
@@ -62,6 +68,9 @@ export class VertexService implements PriceStreamService {
     }
   }
 
+  /**
+   * Initialize the Vertex client and fetch necessary symbol mappings
+   */
   private async initialize() {
     if (this.isInitialized) return;
 
@@ -87,6 +96,9 @@ export class VertexService implements PriceStreamService {
     }
   }
 
+  /**
+   * Start polling for price updates for all active subscriptions
+   */
   private startPricePolling() {
     if (this.pricePollingSubscription) return;
 
@@ -108,11 +120,17 @@ export class VertexService implements PriceStreamService {
       });
   }
 
+  /**
+   * Connect to the Vertex service and initialize price polling
+   */
   public async connect(): Promise<void> {
     await this.initialize();
     this.startPricePolling();
   }
 
+  /**
+   * Disconnect from the Vertex service and cleanup all resources
+   */
   public disconnect(): void {
     if (this.pricePollingSubscription) {
       this.pricePollingSubscription.unsubscribe();
@@ -126,6 +144,9 @@ export class VertexService implements PriceStreamService {
     this.symbolsMap.clear();
   }
 
+  /**
+   * Get list of available trading symbols from Vertex markets
+   */
   public async getAvailableSymbols(): Promise<string[]> {
     await this.initialize();
 
@@ -152,6 +173,9 @@ export class VertexService implements PriceStreamService {
     }
   }
 
+  /**
+   * Get the product ID for a given symbol, fetching fresh mappings if needed
+   */
   private async getProductId(symbol: string): Promise<number> {
     await this.initialize();
 
@@ -172,6 +196,9 @@ export class VertexService implements PriceStreamService {
     return productId;
   }
 
+  /**
+   * Get a price stream for a specific symbol
+   */
   public getPriceStream(symbol: string): Observable<PriceData> {
     if (!this.isInitialized) {
       this.connect(); // Auto-connect like ReyaService
@@ -186,6 +213,9 @@ export class VertexService implements PriceStreamService {
     );
   }
 
+  /**
+   * Fetch current prices for multiple symbols from Vertex API
+   */
   private async fetchPrices(symbols: string[]): Promise<PriceData[]> {
     if (!this.client) {
       throw new Error("Vertex client not initialized"); // Consistent error messaging

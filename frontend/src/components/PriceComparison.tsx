@@ -51,7 +51,14 @@ export const PriceComparison: React.FC = () => {
           <Title level={3}>Real-time Price Comparison</Title>
 
           {error && (
-            <Alert message="Error" description={error} type="error" showIcon />
+            <Alert
+              message="Error"
+              description={`Failed to connect to backend server, is it running?
+             \n\n Retrying connection... 
+             \n\n Error: ${error}`}
+              type="error"
+              showIcon
+            />
           )}
 
           <SymbolSearch onSelect={handleSymbolSelect} />

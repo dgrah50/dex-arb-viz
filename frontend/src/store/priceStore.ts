@@ -40,6 +40,8 @@ interface PriceState {
 }
 
 const MAX_HISTORY_POINTS = 100;
+const MAX_RETRY_DELAY = 10000; // 10 seconds
+const INITIAL_RETRY_DELAY = 1000; // 1 second
 
 // Create the store instance outside of any subscription
 export const usePriceStore = create<PriceState>()(
@@ -132,18 +134,34 @@ export const usePriceStore = create<PriceState>()(
         state.error = null;
       });
 
-      try {
-        const symbols = await fetchAvailableSymbols();
-        set((state) => {
-          state.availableSymbols = symbols;
-          state.isLoadingSymbols = false;
-        });
-      } catch (error) {
-        set((state) => {
-          state.error =
-            error instanceof Error ? error.message : "Failed to fetch symbols";
-          state.isLoadingSymbols = false;
-        });
+      let attempt = 0;
+
+      // eslint-disable-next-line no-constant-condition
+      while (true) {
+        try {
+          const symbols = await fetchAvailableSymbols();
+          set((state) => {
+            state.availableSymbols = symbols;
+            state.isLoadingSymbols = false;
+            state.error = null;
+          });
+          return;
+        } catch (error) {
+          attempt++;
+          set((state) => {
+            state.error =
+              error instanceof Error
+                ? error.message
+                : "Failed to fetch symbols";
+          });
+
+          // Calculate delay with exponential backoff, capped at MAX_RETRY_DELAY
+          const delay = Math.min(
+            INITIAL_RETRY_DELAY * Math.pow(2, attempt - 1),
+            MAX_RETRY_DELAY
+          );
+          await new Promise((resolve) => setTimeout(resolve, delay));
+        }
       }
     },
   }))

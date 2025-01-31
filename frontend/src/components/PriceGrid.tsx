@@ -99,6 +99,12 @@ const ActionCellRenderer = memo<
 
 const LoadingOverlay = memo(() => <Spin />);
 
+const NoRowsOverlay = memo(() => (
+  <div style={{ padding: "20px", textAlign: "center" }}>
+    Please select a symbol to view price data
+  </div>
+));
+
 export interface PriceGridProps {
   onSymbolClick: (symbol: string) => void;
   onRemoveSymbol: (symbol: string) => void;
@@ -108,16 +114,17 @@ export const PriceGrid = memo<PriceGridProps>(
   ({ onSymbolClick, onRemoveSymbol }) => {
     const gridApiRef = useRef<GridApi | null>(null);
     const selectedSymbols = usePriceStore((state) => state.selectedSymbols);
-    const prices = usePriceStore((state) => state.getFilteredPrices());
+    const filteredPrices = usePriceStore((state) => state.getFilteredPrices());
+    const prices = usePriceStore((state) => state.prices);
 
     // Calculate maximum spread value
     const maxSpread = useMemo(() => {
       return Math.max(
         ...selectedSymbols.map((symbol) =>
-          Math.abs(prices[symbol]?.spread?.value || 0)
+          Math.abs(filteredPrices[symbol]?.spread?.value || 0)
         )
       );
-    }, [selectedSymbols, prices]);
+    }, [selectedSymbols, filteredPrices]);
 
     const getRowId = useCallback(
       (params: { data: PriceRecord }) => params.data.symbol,
@@ -182,15 +189,17 @@ export const PriceGrid = memo<PriceGridProps>(
       const updatedData = selectedSymbols.map((symbol) => ({
         key: symbol,
         symbol,
-        reyaPrice: prices[symbol]?.reya?.price,
-        vertexPrice: prices[symbol]?.vertex?.price,
-        spread: prices[symbol]?.spread,
+        reyaPrice: filteredPrices[symbol]?.reya?.price,
+        vertexPrice: filteredPrices[symbol]?.vertex?.price,
+        spread: filteredPrices[symbol]?.spread,
       }));
 
-      if (selectedSymbols.length > 0) {
-        gridApiRef.current.setRowData(updatedData);
+      const renderedNodes = gridApiRef.current?.getRenderedNodes();
+
+      if (renderedNodes.length != 0 || updatedData.length != 0) {
+        gridApiRef.current.setGridOption("rowData", updatedData);
       }
-    }, [selectedSymbols, prices]);
+    }, [selectedSymbols, filteredPrices]);
 
     const defaultColDef = useMemo(
       () => ({
@@ -200,6 +209,12 @@ export const PriceGrid = memo<PriceGridProps>(
       }),
       []
     );
+
+    let loading = true;
+
+    if (Object.keys(prices).length > 0 && gridApiRef.current) {
+      loading = false;
+    }
 
     return (
       <>
@@ -217,8 +232,10 @@ export const PriceGrid = memo<PriceGridProps>(
             suppressPaginationPanel={true}
             defaultColDef={defaultColDef}
             loadingOverlayComponent={LoadingOverlay}
+            noRowsOverlayComponent={NoRowsOverlay}
             onGridReady={onGridReady}
             getRowId={getRowId}
+            loading={loading}
           />
         </div>
       </>

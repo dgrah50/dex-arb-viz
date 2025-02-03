@@ -1,4 +1,4 @@
-import React, { useEffect, useCallback, useMemo, memo, useRef } from "react";
+import React, { useCallback, useMemo, memo, useRef } from "react";
 import { Button, Tag } from "antd";
 import { AgGridReact } from "@ag-grid-community/react";
 import {
@@ -117,6 +117,19 @@ export const PriceGrid = memo<PriceGridProps>(
     const filteredPrices = usePriceStore((state) => state.getFilteredPrices());
     const prices = usePriceStore((state) => state.prices);
 
+    // Transform the data directly in a useMemo
+    const rowData = useMemo(
+      () =>
+        selectedSymbols.map((symbol) => ({
+          key: symbol,
+          symbol,
+          reyaPrice: filteredPrices[symbol]?.reya?.price,
+          vertexPrice: filteredPrices[symbol]?.vertex?.price,
+          spread: filteredPrices[symbol]?.spread,
+        })),
+      [selectedSymbols, filteredPrices]
+    );
+
     // Calculate maximum spread value
     const maxSpread = useMemo(() => {
       return Math.max(
@@ -183,24 +196,6 @@ export const PriceGrid = memo<PriceGridProps>(
       [onSymbolClick, onRemoveSymbol, maxSpread]
     );
 
-    useEffect(() => {
-      if (!gridApiRef.current) return;
-
-      const updatedData = selectedSymbols.map((symbol) => ({
-        key: symbol,
-        symbol,
-        reyaPrice: filteredPrices[symbol]?.reya?.price,
-        vertexPrice: filteredPrices[symbol]?.vertex?.price,
-        spread: filteredPrices[symbol]?.spread,
-      }));
-
-      const renderedNodes = gridApiRef.current?.getRenderedNodes();
-
-      if (renderedNodes.length != 0 || updatedData.length != 0) {
-        gridApiRef.current.setGridOption("rowData", updatedData);
-      }
-    }, [selectedSymbols, filteredPrices]);
-
     const defaultColDef = useMemo(
       () => ({
         sortable: true,
@@ -227,6 +222,7 @@ export const PriceGrid = memo<PriceGridProps>(
         </div>
         <div className="ag-theme-alpine" style={{ height: 400, width: "100%" }}>
           <AgGridReact
+            rowData={rowData}
             columnDefs={columnDefs}
             domLayout="autoHeight"
             suppressPaginationPanel={true}

@@ -1,5 +1,5 @@
 import { ReyaService } from "../services/reya.js";
-import { VertexService } from "../services/vertex.js";
+import { HyperliquidService } from "../services/hyperliquid.js";
 import { merge } from "rxjs";
 
 async function main() {
@@ -7,46 +7,44 @@ async function main() {
 
   try {
     const reyaService = new ReyaService();
-    const vertexService = new VertexService();
+    const hyperliquidService = new HyperliquidService();
 
     console.log("\nConnecting to services...");
-    await Promise.all([reyaService.connect(), vertexService.connect()]);
+    await Promise.all([reyaService.connect(), hyperliquidService.connect()]);
     console.log("Connected to both services");
 
     console.log("\nFetching available symbols...");
-    const [reyaSymbols, vertexSymbols] = await Promise.all([
+    const [reyaSymbols, hyperliquidSymbols] = await Promise.all([
       reyaService.getAvailableSymbols(),
-      vertexService.getAvailableSymbols(),
+      hyperliquidService.getAvailableSymbols(),
     ]);
 
     console.log("Reya available symbols:", reyaSymbols);
-    console.log("Vertex available symbols:", vertexSymbols);
+    console.log("Hyperliquid available symbols:", hyperliquidSymbols);
 
     // Find a common symbol (e.g., ETH)
     const commonSymbols = reyaSymbols.filter((symbol) =>
-      vertexSymbols.some(
-        (vs) => vs.replace("-PERP", "") === symbol.replace("-rUSD", "")
-      )
+      hyperliquidSymbols.some((hs) => hs === symbol.replace("-rUSD", ""))
     );
 
     if (commonSymbols.length === 0) {
-      throw new Error("No common symbols found between Reya and Vertex");
+      throw new Error("No common symbols found between Reya and Hyperliquid");
     }
 
     const reyaSymbol = commonSymbols[1];
-    const vertexSymbol = vertexSymbols.find(
-      (vs) => vs.replace("-PERP", "") === reyaSymbol.replace("-rUSD", "")
+    const hyperliquidSymbol = hyperliquidSymbols.find(
+      (hs) => hs === reyaSymbol.replace("-rUSD", "")
     )!;
 
     console.log(
-      `\nFound common symbol: ${reyaSymbol} (Reya) / ${vertexSymbol} (Vertex)`
+      `\nFound common symbol: ${reyaSymbol} (Reya) / ${hyperliquidSymbol} (Hyperliquid)`
     );
     console.log("Subscribing to price feeds from both services...");
 
     // Subscribe to both price feeds
     const subscription = merge(
       reyaService.getPriceStream(reyaSymbol),
-      vertexService.getPriceStream(vertexSymbol)
+      hyperliquidService.getPriceStream(hyperliquidSymbol)
     ).subscribe({
       next: (price) => {
         console.log(
@@ -70,7 +68,7 @@ async function main() {
     console.log("\nCleaning up...");
     subscription.unsubscribe();
     reyaService.disconnect();
-    vertexService.disconnect();
+    hyperliquidService.disconnect();
   } catch (error) {
     console.error("Error in test script:", error);
     console.error(

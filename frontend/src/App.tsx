@@ -8,7 +8,7 @@ const App: React.FC = () => {
   return (
     <Layout style={{ minHeight: "100vh" }}>
       <Header style={{ background: "#fff", padding: "0 24px" }}>
-        <h1>Reya Price Comparison</h1>
+        <h1>Reya vs Hyperliquid Price Comparison</h1>
       </Header>
       <Content style={{ padding: "24px" }}>
         <PriceComparison />

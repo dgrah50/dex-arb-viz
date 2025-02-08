@@ -1,28 +1,28 @@
 export interface SpreadInfo {
   value: number;
-  direction: "reya-higher" | "vertex-higher" | "equal";
+  direction: "reya-higher" | "hyperliquid-higher" | "equal";
   color: string;
 }
 
 export const calculateSpread = (
   reyaPrice?: number,
-  vertexPrice?: number
+  hyperliquidPrice?: number
 ): SpreadInfo | null => {
-  if (!reyaPrice || !vertexPrice) return null;
+  if (!reyaPrice || !hyperliquidPrice) return null;
 
-  const minPrice = Math.min(reyaPrice, vertexPrice);
-  const spread = (Math.abs(reyaPrice - vertexPrice) / minPrice) * 100;
+  const minPrice = Math.min(reyaPrice, hyperliquidPrice);
+  const spread = (Math.abs(reyaPrice - hyperliquidPrice) / minPrice) * 100;
 
   // Determine direction and color based on which price is higher
   let direction: SpreadInfo["direction"] = "equal";
   let color = "#8c8c8c"; // Equal prices - gray
 
-  if (reyaPrice > vertexPrice) {
+  if (reyaPrice > hyperliquidPrice) {
     direction = "reya-higher";
     color = "#1890ff"; // Reya higher - blue
-  } else if (vertexPrice > reyaPrice) {
-    direction = "vertex-higher";
-    color = "#722ed1"; // Vertex higher - purple
+  } else if (hyperliquidPrice > reyaPrice) {
+    direction = "hyperliquid-higher";
+    color = "#722ed1"; // Hyperliquid higher - purple
   }
 
   return {
@@ -38,8 +38,8 @@ export const getDirectionLabel = (
   switch (direction) {
     case "reya-higher":
       return "Reya Price Higher";
-    case "vertex-higher":
-      return "Vertex Price Higher";
+    case "hyperliquid-higher":
+      return "Hyperliquid Price Higher";
     case "equal":
       return "Equal Prices";
     default:

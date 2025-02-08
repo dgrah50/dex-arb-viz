@@ -7,7 +7,7 @@ import { immer } from "zustand/middleware/immer";
 interface HistoricalPrice {
   timestamp: number;
   reyaPrice?: number;
-  vertexPrice?: number;
+  hyperliquidPrice?: number;
   spread?: SpreadInfo;
 }
 
@@ -15,7 +15,7 @@ interface PriceState {
   prices: {
     [symbol: string]: {
       reya?: PriceData;
-      vertex?: PriceData;
+      hyperliquid?: PriceData;
       history: HistoricalPrice[];
       spread?: SpreadInfo;
     };
@@ -27,7 +27,7 @@ interface PriceState {
   getFilteredPrices: () => {
     [symbol: string]: {
       reya?: PriceData;
-      vertex?: PriceData;
+      hyperliquid?: PriceData;
       history: HistoricalPrice[];
       spread?: SpreadInfo;
     };
@@ -91,20 +91,21 @@ export const usePriceStore = create<PriceState>()(
     updatePrice: (data: PriceData) => {
       const currentState = get();
 
-      const otherSource = data.source === "reya" ? "vertex" : "reya";
+      const otherSource = data.source === "reya" ? "hyperliquid" : "reya";
       const otherPrice =
         currentState.prices[data.symbol]?.[otherSource]?.price ?? undefined;
 
       // Calculate new spread if we have both prices
       const reyaPrice = data.source === "reya" ? data.price : otherPrice;
-      const vertexPrice = data.source === "vertex" ? data.price : otherPrice;
-      const spreadResult = calculateSpread(reyaPrice, vertexPrice);
+      const hyperliquidPrice =
+        data.source === "hyperliquid" ? data.price : otherPrice;
+      const spreadResult = calculateSpread(reyaPrice, hyperliquidPrice);
 
       // Create new history point
       const newHistoryPoint: HistoricalPrice = {
         timestamp: data.timestamp,
         reyaPrice,
-        vertexPrice,
+        hyperliquidPrice,
         spread: spreadResult || undefined,
       };
 

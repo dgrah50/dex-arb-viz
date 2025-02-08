@@ -9,49 +9,11 @@ import { filter, map } from "rxjs/operators";
 import { PriceData, PriceStreamService } from "./types";
 
 interface ReyaPriceMessage {
-  signedPrice: {
-    oraclePubKey: string;
-    pricePayload: unknown;
-    r: string;
-    s: string;
-    v: number;
-  };
-  poolPrice: string;
-  spotPrice: string;
-  assetPairId: string;
-  marketId: number;
+  symbol: string;
+  oraclePrice?: string;
+  poolPrice?: string;
+  updatedAt: number;
 }
-
-// Mapping between ticker symbols and their market IDs, bit manual but not really exposed publicly
-const MARKET_ID_MAPPING = {
-  "ETH-rUSD": "ETHUSDMARK",
-  "BTC-rUSD": "BTCUSDMARK",
-  "SOL-rUSD": "SOLUSDMARK",
-  "ARB-rUSD": "ARBUSDMARK",
-  "OP-rUSD": "OPUSDMARK",
-  "AVAX-rUSD": "AVAXUSDMARK",
-  "MKR-rUSD": "MKRUSDMARK",
-  "LINK-rUSD": "LINKUSDMARK",
-  "AAVE-rUSD": "AAVEUSDMARK",
-  "CRV-rUSD": "CRVUSDMARK",
-  "UNI-rUSD": "UNIUSDMARK",
-  "SUI-rUSD": "SUIUSDMARK",
-  "TIA-rUSD": "TIAUSDMARK",
-  "SEI-rUSD": "SEIUSDMARK",
-  "ZRO-rUSD": "ZROUSDMARK",
-  "XRP-rUSD": "XRPUSDMARK",
-  "WIF-rUSD": "WIFUSDMARK",
-  "kPEPE-rUSD": "1000PEPEUSDMARK",
-  "POPCAT-rUSD": "POPCATUSDMARK",
-  "DOGE-rUSD": "DOGEUSDMARK",
-  "kSHIB-rUSD": "1000SHIBUSDMARK",
-  "kBONK-rUSD": "1000BONKUSDMARK",
-  "APT-rUSD": "APTUSDMARK",
-  "BNB-rUSD": "BNBUSDMARK",
-  "JTO-rUSD": "JTOUSDMARK",
-} as const;
-
-type ReyaSymbol = keyof typeof MARKET_ID_MAPPING;
 
 /**
  * Service for interacting with Reya's WebSocket API to stream price data
@@ -78,7 +40,7 @@ export class ReyaService implements PriceStreamService {
         console.log("Reya WebSocket connected");
         this.isInitialized = true;
         this.activeSubscriptions.forEach((marketId) => {
-          this.socket?.subscribe("prices", { id: marketId });
+          this.socket?.subscribe(`/v2/prices/${marketId}`);
         });
       },
       onClose: () => {
@@ -88,15 +50,50 @@ export class ReyaService implements PriceStreamService {
       onMessage: (message: SocketMessage) => {
         this.messageSubject.next(message);
       },
+      onError: () => {
+        console.log("Reya WebSocket error");
+        this.isInitialized = false;
+      },
     });
   }
 
   /**
    * Connect to the Reya WebSocket service
    */
-  public connect(): void {
-    this.initSocket();
-    this.socket?.connect();
+  public connect(): Promise<void> {
+    return new Promise((resolve, reject) => {
+      try {
+        this.initSocket();
+        if (!this.socket) {
+          reject(new Error("Failed to initialize Reya socket"));
+          return;
+        }
+
+        // Error handling is now done in the SocketClient constructor
+
+        this.socket.connect();
+
+        // Wait for connection to be established
+        const checkConnection = () => {
+          if (this.isInitialized) {
+            resolve();
+          } else {
+            setTimeout(checkConnection, 100);
+          }
+        };
+
+        // Timeout after 10 seconds
+        setTimeout(() => {
+          if (!this.isInitialized) {
+            reject(new Error("Reya connection timeout"));
+          }
+        }, 10000);
+
+        checkConnection();
+      } catch (error) {
+        reject(error);
+      }
+    });
   }
 
   /**
@@ -129,20 +126,7 @@ export class ReyaService implements PriceStreamService {
    */
   public async getAvailableSymbols(): Promise<string[]> {
     const markets = await this.getAvailableMarkets();
-    return markets
-      .map((market) => market.ticker)
-      .filter((ticker): ticker is ReyaSymbol => ticker in MARKET_ID_MAPPING);
-  }
-
-  /**
-   * Get the market ID for a given symbol
-   */
-  private getMarketId(symbol: string): string {
-    const marketId = MARKET_ID_MAPPING[symbol as ReyaSymbol];
-    if (!marketId) {
-      throw new Error(`No market ID found for symbol: ${symbol}`);
-    }
-    return marketId;
+    return markets.map((market) => market.ticker);
   }
 
   /**
@@ -157,32 +141,40 @@ export class ReyaService implements PriceStreamService {
       throw new Error("Reya client not initialized");
     }
 
-    const marketId = this.getMarketId(symbol);
+    // Convert symbol format from DOGE-rUSD to DOGERUSDPERP
+    const marketId = symbol.replace("-rUSD", "RUSDPERP");
     this.activeSubscriptions.add(marketId);
-    this.socket.subscribe("prices", { id: marketId });
+    this.socket.subscribe(`/v2/prices/${marketId}`);
 
     return this.messageSubject.pipe(
       // Filter for price update messages for this specific market ID
       filter(
-        (
-          message
-        ): message is SocketMessage & { contents: ReyaPriceMessage } => {
+        (message): message is SocketMessage & { data: ReyaPriceMessage } => {
           if (message.type !== "channel_data") return false;
-          if (typeof message.contents !== "object" || !message.contents)
+          if (
+            typeof (message as any).data !== "object" ||
+            !(message as any).data
+          )
             return false;
-          if (!("poolPrice" in message.contents)) return false;
+          if (
+            !(
+              "poolPrice" in (message as any).data ||
+              "oraclePrice" in (message as any).data
+            )
+          )
+            return false;
 
           // Check if this message is for our specific market ID
-          return (
-            (message.contents as ReyaPriceMessage).assetPairId === marketId
-          );
+          return message.channel === `/v2/prices/${marketId}`;
         }
       ),
       map((message) => {
-        const priceMessage = message.contents as ReyaPriceMessage;
+        const priceMessage = (message as any).data as ReyaPriceMessage;
+        // Use poolPrice if available, otherwise fall back to oraclePrice
+        const price = priceMessage.poolPrice || priceMessage.oraclePrice || "0";
         return {
           symbol,
-          price: parseFloat(priceMessage.poolPrice),
+          price: parseFloat(price),
           timestamp: Date.now(),
           source: "reya" as const,
         };

@@ -14,8 +14,7 @@
   "license": "ISC",
   "description": "",
   "dependencies": {
-    "@reyaxyz/api-sdk": "^0.92.8",
-    "@vertex-protocol/client": "^0.71.0",
+    "@reyaxyz/api-sdk": "^0.156.2",
     "cors": "^2.8.5",
     "express": "^4.21.2",
     "rxjs": "^7.8.0",

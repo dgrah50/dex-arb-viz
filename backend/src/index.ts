@@ -3,7 +3,7 @@ import cors from "cors";
 import { WebSocketServer } from "ws";
 import { merge } from "rxjs";
 import { ReyaService } from "./services/reya.js";
-import { VertexService } from "./services/vertex.js";
+import { HyperliquidService } from "./services/hyperliquid.js";
 import { map } from "rxjs/operators";
 import path from "path";
 import { fileURLToPath } from "url";
@@ -21,7 +21,7 @@ interface Price {
 const startServer = async () => {
   const app = express();
   const reyaService = new ReyaService();
-  const vertexService = new VertexService();
+  const hyperliquidService = new HyperliquidService();
 
   app.use(
     cors({
@@ -32,30 +32,64 @@ const startServer = async () => {
 
   app.use(express.static(path.join(__dirname, "../../public")));
 
-  await Promise.all([reyaService.connect(), vertexService.connect()]);
-  const [reyaSymbols, vertexSymbols] = await Promise.all([
-    reyaService.getAvailableSymbols(),
-    vertexService.getAvailableSymbols(),
-  ]);
+  // Connect to services with error handling
+  let reyaSymbols: string[] = [];
+  let hyperliquidSymbols: string[] = [];
 
-  // Find common symbols between both services
-  const SUPPORTED_SYMBOLS = reyaSymbols
-    .map((symbol) => ({
-      reyaSymbol: symbol,
-      baseSymbol: symbol.replace("-rUSD", ""),
-      vertexSymbol: vertexSymbols.find(
-        (vs) => vs.replace("-PERP", "") === symbol.replace("-rUSD", "")
-      ),
-    }))
-    .filter(
-      (
-        pair
-      ): pair is {
-        reyaSymbol: string;
-        baseSymbol: string;
-        vertexSymbol: string;
-      } => pair.vertexSymbol !== undefined
-    );
+  try {
+    await reyaService.connect();
+    reyaSymbols = await reyaService.getAvailableSymbols();
+    console.log("✅ Reya service connected successfully");
+  } catch (error) {
+    console.error("❌ Failed to connect to Reya:", error);
+  }
+
+  try {
+    await hyperliquidService.connect();
+    hyperliquidSymbols = await hyperliquidService.getAvailableSymbols();
+    console.log("✅ Hyperliquid service connected successfully");
+  } catch (error) {
+    console.error("❌ Failed to connect to Hyperliquid:", error);
+  }
+
+  // Find common symbols between both services, or use available services
+  let SUPPORTED_SYMBOLS: Array<{
+    reyaSymbol?: string;
+    baseSymbol: string;
+    hyperliquidSymbol: string;
+  }>;
+
+  if (reyaSymbols.length > 0 && hyperliquidSymbols.length > 0) {
+    // Both services available - find common symbols
+    SUPPORTED_SYMBOLS = [];
+
+    for (const reyaSymbol of reyaSymbols) {
+      // Convert Reya symbol (e.g., "DOGE-rUSD") to base symbol (e.g., "DOGE")
+      const baseSymbol = reyaSymbol.replace("-rUSD", "");
+
+      // Find matching Hyperliquid symbol
+      const hyperliquidSymbol = hyperliquidSymbols.find(
+        (symbol) => symbol.toUpperCase() === baseSymbol.toUpperCase()
+      );
+
+      if (hyperliquidSymbol) {
+        SUPPORTED_SYMBOLS.push({
+          reyaSymbol,
+          baseSymbol,
+          hyperliquidSymbol,
+        });
+      }
+    }
+  } else if (hyperliquidSymbols.length > 0) {
+    // Only Hyperliquid available
+    SUPPORTED_SYMBOLS = hyperliquidSymbols.map((symbol) => ({
+      baseSymbol: symbol,
+      hyperliquidSymbol: symbol,
+    }));
+  } else {
+    // No services available
+    SUPPORTED_SYMBOLS = [];
+  }
 
   console.log(
     "Supported symbols:",
@@ -76,25 +110,54 @@ const startServer = async () => {
     console.log("Client connected");
 
     const subscriptions = SUPPORTED_SYMBOLS.map((symbolPair) => {
-      const reyaStream = reyaService.getPriceStream(symbolPair.reyaSymbol).pipe(
-        map((price) => ({
-          ...price,
-          symbol: symbolPair.baseSymbol,
-          source: "reya",
-        }))
-      );
+      const streams = [];
 
-      const vertexStream = vertexService
-        .getPriceStream(symbolPair.vertexSymbol)
-        .pipe(
-          map((price) => ({
-            ...price,
-            symbol: symbolPair.baseSymbol,
-            source: "vertex",
-          }))
+      // Add Reya stream if available
+      if (symbolPair.reyaSymbol) {
+        try {
+          const reyaStream = reyaService
+            .getPriceStream(symbolPair.reyaSymbol)
+            .pipe(
+              map((price) => ({
+                ...price,
+                symbol: symbolPair.baseSymbol,
+                source: "reya",
+              }))
+            );
+          streams.push(reyaStream);
+        } catch (error) {
+          console.error(
+            `Reya stream error for ${symbolPair.baseSymbol}:`,
+            error
+          );
+        }
+      }
+
+      // Add Hyperliquid stream
+      try {
+        const hyperliquidStream = hyperliquidService
+          .getPriceStream(symbolPair.hyperliquidSymbol)
+          .pipe(
+            map((price) => ({
+              ...price,
+              symbol: symbolPair.baseSymbol,
+              source: "hyperliquid",
+            }))
+          );
+        streams.push(hyperliquidStream);
+      } catch (error) {
+        console.error(
+          `Hyperliquid stream error for ${symbolPair.baseSymbol}:`,
+          error
         );
+      }
 
-      return merge(reyaStream, vertexStream).subscribe(
+      if (streams.length === 0) {
+        console.warn(`No streams available for ${symbolPair.baseSymbol}`);
+        return null;
+      }
+
+      return merge(...streams).subscribe(
         (price: Price) => {
           if (ws.readyState === ws.OPEN) {
             ws.send(JSON.stringify(price));
@@ -106,19 +169,27 @@ const startServer = async () => {
             error
           )
       );
-    });
+    }).filter(Boolean);
 
     ws.on("close", () => {
       console.log("Client disconnected");
-      subscriptions.forEach((sub) => sub.unsubscribe());
+      subscriptions.forEach((sub) => sub?.unsubscribe());
     });
   });
 
   process.on("SIGTERM", () => {
     console.log("SIGTERM received. Closing server...");
     server.close(() => {
-      reyaService.disconnect();
-      vertexService.disconnect();
+      try {
+        reyaService.disconnect();
+      } catch (error) {
+        console.warn("Error disconnecting Reya service:", error);
+      }
+      try {
+        hyperliquidService.disconnect();
+      } catch (error) {
+        console.warn("Error disconnecting Hyperliquid service:", error);
+      }
       process.exit(0);
     });
   });
@@ -126,5 +197,18 @@ const startServer = async () => {
 
 startServer().catch((error) => {
   console.error("Failed to start server:", error);
+  console.error("Error details:", error instanceof Error ? error.stack : error);
+  process.exit(1);
+});
+
+// Add global error handlers
+process.on("uncaughtException", (error) => {
+  console.error("Uncaught Exception:", error);
+  console.error("Stack:", error.stack);
+  process.exit(1);
+});
+
+process.on("unhandledRejection", (reason, promise) => {
+  console.error("Unhandled Rejection at:", promise, "reason:", reason);
   process.exit(1);
 });

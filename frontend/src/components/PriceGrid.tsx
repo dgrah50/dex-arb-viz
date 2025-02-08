@@ -23,14 +23,14 @@ export interface PriceRecord {
   key: string;
   symbol: string;
   reyaPrice?: number;
-  vertexPrice?: number;
+  hyperliquidPrice?: number;
   spread?: SpreadInfo;
   action?: React.ReactNode;
 }
 
 const SPREAD_LEGEND = [
   { color: "#1890ff", label: "Reya Price Higher" },
-  { color: "#722ed1", label: "Vertex Price Higher" },
+  { color: "#722ed1", label: "Hyperliquid Price Higher" },
   { color: "#8c8c8c", label: "Equal Prices" },
 ];
 
@@ -117,18 +117,13 @@ export const PriceGrid = memo<PriceGridProps>(
     const filteredPrices = usePriceStore((state) => state.getFilteredPrices());
     const prices = usePriceStore((state) => state.prices);
 
-    // Transform the data directly in a useMemo
-    const rowData = useMemo(
-      () =>
-        selectedSymbols.map((symbol) => ({
-          key: symbol,
-          symbol,
-          reyaPrice: filteredPrices[symbol]?.reya?.price,
-          vertexPrice: filteredPrices[symbol]?.vertex?.price,
-          spread: filteredPrices[symbol]?.spread,
-        })),
-      [selectedSymbols, filteredPrices]
-    );
+    const rowData = selectedSymbols.map((symbol) => ({
+      key: symbol,
+      symbol,
+      reyaPrice: filteredPrices[symbol]?.reya?.price,
+      hyperliquidPrice: filteredPrices[symbol]?.hyperliquid?.price,
+      spread: filteredPrices[symbol]?.spread,
+    }));
 
     // Calculate maximum spread value
     const maxSpread = useMemo(() => {
@@ -164,8 +159,8 @@ export const PriceGrid = memo<PriceGridProps>(
           valueFormatter: (params) => params.value?.toFixed(4) || "-",
         },
         {
-          field: "vertexPrice",
-          headerName: "Vertex Price",
+          field: "hyperliquidPrice",
+          headerName: "Hyperliquid Price",
           valueFormatter: (params) => params.value?.toFixed(4) || "-",
         },
         {

@@ -1,5 +1,5 @@
 export interface PriceData {
-  source: "reya" | "vertex";
+  source: "reya" | "hyperliquid";
   symbol: string;
   price: number;
   timestamp: number;

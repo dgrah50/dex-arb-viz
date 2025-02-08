@@ -4,11 +4,11 @@ export interface PriceData {
   symbol: string;
   price: number;
   timestamp: number;
-  source: "reya" | "vertex";
+  source: "reya" | "hyperliquid";
 }
 
 export interface PriceStreamService {
-  connect(): void;
+  connect(): Promise<void>;
 
   disconnect(): void;
 
